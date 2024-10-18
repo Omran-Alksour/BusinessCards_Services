@@ -1,18 +1,9 @@
-﻿using Application.UseCases.BusinessCard.Queries.ExportBusinessCards;
-using Application.UseCases.BusinessCard.Commands.GenerateQrCode;
-using Application.UseCases.BusinessCard.Commands.DecodeQrCode;
-using Application.UseCases.General.Commands.ConvertToBase64;
-using Application.UseCases.BusinessCard.Queries.GetByEmail;
-using Application.UseCases.BusinessCard.Commands.Create;
-using Application.UseCases.BusinessCard.Commands.Delete;
-using Application.UseCases.BusinessCard.Commands.Import;
-using Application.UseCases.BusinessCard.Queries.List;
+﻿using Application.UseCases.BusinessCard.Commands.Create;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Presentation.Abstractions;
 using Microsoft.AspNetCore.Mvc;
-using Application.Validators;
 using Domain.ValueObjects;
 using Domain.Requests;
 using Domain.Errors;
@@ -55,6 +46,7 @@ namespace Presentation.Controllers
         }
 
 
+
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
         {
@@ -84,6 +76,33 @@ namespace Presentation.Controllers
             var command = new BusinessCardDeleteCommand(IDs, forceDelete, cancellationToken);
             var result = await Sender.Send(command, cancellationToken);
             return result.IsSuccess ? Ok(result) : StatusCode(600, result.Error);
+        }
+
+
+
+
+
+
+
+        [HttpPost("convertImageToBase64")]
+        public async Task<IActionResult> convertImageToBase64(
+        [Required]
+        [CustomFileSize(1 * 1024 * 1024)]
+        [CustomFileExtensions(".png,.jpg,.jpeg,.gif")]
+          IFormFile photoFile)
+        {
+            {
+                var command = new ConvertToBase64ImageCommand(photoFile);
+                var result = await Sender.Send(command);
+
+                if (!result.IsSuccess)
+                {
+                    return BadRequest(result.Error);
+                }
+
+                return Ok(new { Base64Image = result });
+            }
+
         }
 
 
