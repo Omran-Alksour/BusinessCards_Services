@@ -12,6 +12,7 @@
         DateTime? LastUpdateAt = null
     );
 
+    //For XML & QR Code
     public class BusinessCard
     {
         public string Name { get; set; }

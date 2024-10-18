@@ -42,25 +42,80 @@ namespace Persistence.Repositories
             return Result<BusinessCard?>.Success(BusinessCard);
         }
 
-        public Task<Result<List<Guid>>> DeleteAsync(List<Guid> IDs, bool forceDelete, CancellationToken cancellationToken = default)
+
+
+        public async Task<BusinessCard?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return await _context.BusinessCards
+        .AsNoTracking()
+        .FirstOrDefaultAsync(c => c.Id == id.ToString(), cancellationToken);
         }
 
-        public Task<BusinessCard?> GetByIdAsync(Guid ID, CancellationToken cancellationToken = default)
+
+        public async Task<PagedResponse<BusinessCard>> ListAsync(int? pageNumber = null, int? pageSize = null, string? search = null, string? orderBy = null, string? orderDirection = "asc", CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            IQueryable<BusinessCard> query = _context.BusinessCards.AsNoTracking()
+                .Where(c => !c.IsDeleted);
+
+            if (!string.IsNullOrEmpty(search))
+            {
+                query = ApplySearchFilters(query, search);
+                pageNumber = 1;
+            }
+
+
+            if (!string.IsNullOrEmpty(orderBy))
+            {
+                query = query.AsQueryable().OrderByDynamic(orderBy, orderDirection);
+            }
+            else
+            {
+                query = query.OrderBy(s => s.Name);
+            }
+
+            return await Pagination<BusinessCard>.GetWithOffsetPagination(query, pageNumber, pageSize, cancellationToken);
         }
 
-        public Task<List<BusinessCard>> GetByIdsAsync(List<Guid>? IDs, CancellationToken cancellationToken = default)
+        private IQueryable<BusinessCard> ApplySearchFilters(IQueryable<BusinessCard> query, string search)
         {
-            throw new NotImplementedException();
+            if (string.IsNullOrEmpty(search))
+                return query;
+
+            search = search.ToLower();
+
+            int? genderCode = null;
+            if ("male".Contains(search, StringComparison.OrdinalIgnoreCase) || search.Contains("male", StringComparison.OrdinalIgnoreCase))
+            {
+                genderCode = 1;
+            }
+            else if ("female".Contains(search, StringComparison.OrdinalIgnoreCase) || search.Contains("female", StringComparison.OrdinalIgnoreCase))
+            {
+                genderCode = 2;
+            }
+
+            var monthMapping = new Dictionary<int, string>
+                    {
+                        { 1, "Jan" }, { 2, "Feb" }, { 3, "Mar" }, { 4, "Apr" },
+                        { 5, "May" }, { 6, "Jun" }, { 7, "Jul" }, { 8, "Aug" },
+                        { 9, "Sep" }, { 10, "Oct" }, { 11, "Nov" }, { 12, "Dec" }
+                    };
+              
+            var monthSearch = monthMapping.FirstOrDefault(x => x.Value.ToLower().Contains(search)).Key;
+
+            return query.Where(c =>
+                EF.Functions.Like(c.Name, $"%{search}%") ||
+                (monthSearch != 0 && c.DateOfBirth.Month == monthSearch) || 
+                EF.Functions.Like(c.PhoneNumber, $"%{search}%") ||
+                (genderCode.HasValue && c.Gender == genderCode) ||
+                EF.Functions.Like(c.Email, $"%{search}%") ||
+
+                c.DateOfBirth.Year.ToString().Contains(search) || 
+                c.DateOfBirth.Day.ToString().Contains(search)
+            );
         }
 
-        public Task<PagedResponse<BusinessCard>?> ListAsync(int? pageNumber = null, int? pageSize = null, string? search = null, string? orderBy = null, string? orderDirection = "asc", CancellationToken cancellationToken = default)
-        {
-            throw new NotImplementedException();
-        }
+
+
 
         public async Task<Result<BusinessCard?>> UpdateAsync(Guid id, string name, Gender gender, Email email, string address, string phoneNumber, DateTime dateOfBirth, string photo, CancellationToken cancellationToken = default)
         {
@@ -91,6 +146,61 @@ namespace Persistence.Repositories
         }
 
 
+
+
+        public async Task<Result<List<Guid>>> DeleteAsync(List<Guid> IDs, bool forceDelete, CancellationToken cancellationToken = default)
+        {
+            var deletedIds = new List<Guid>();
+
+            var stringIds = IDs.Select(id => id.ToString()).ToList();
+
+            var businessCards = await _context.BusinessCards
+                .Where(c => stringIds.Contains(c.Id) && !c.IsDeleted)
+                .ToListAsync(cancellationToken);
+
+            if (!businessCards.Any())
+            {
+                return Result.Failure<List<Guid>>(ApplicationErrors.BusinessCards.Commands.BusinessCardNotFound);
+            }
+
+            foreach (var businessCard in businessCards)
+            {
+                if (forceDelete)
+                {
+                    _context.BusinessCards.Remove(businessCard);
+                }
+                else
+                {
+                    businessCard.Delete();
+                    _context.BusinessCards.Update(businessCard);
+                }
+
+                deletedIds.Add(Guid.Parse(businessCard.Id));  
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return Result<List<Guid>>.Success(deletedIds);
+        }
+
+
+
+        public Task<List<BusinessCard>> GetByIdsAsync(List<Guid>? IDs, CancellationToken cancellationToken = default)
+        {
+            IQueryable<BusinessCard> query = _context.BusinessCards.AsNoTracking();
+
+            if (IDs == null || !IDs.Any())
+            {
+                query = query.Where(c => !c.IsDeleted);
+            }
+            else
+            {
+                var stringIds = IDs.Select(id => id.ToString()).ToList();
+                query = query.Where(c => !c.IsDeleted && stringIds.Contains(c.Id)); 
+            }
+
+            return query.ToListAsync(cancellationToken);
+        }
 
        
     
