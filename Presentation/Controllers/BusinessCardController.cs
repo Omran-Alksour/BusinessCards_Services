@@ -1,4 +1,6 @@
 ﻿using Application.UseCases.BusinessCard.Queries.ExportBusinessCards;
+using Application.UseCases.BusinessCard.Commands.GenerateQrCode;
+using Application.UseCases.BusinessCard.Commands.DecodeQrCode;
 using Application.UseCases.General.Commands.ConvertToBase64;
 using Application.UseCases.BusinessCard.Queries.GetByEmail;
 using Application.UseCases.BusinessCard.Commands.Create;
@@ -150,6 +152,29 @@ namespace Presentation.Controllers
         }
 
 
+        [HttpPost("generateQrCode")]
+        public async Task<IActionResult> GenerateQrCode([FromBody] BusinessCardCreateRequest businessCard)
+        {
+            var qrCodeBytes = await Sender.Send(new GenerateQrCodeCommand(businessCard.name, businessCard.gender, businessCard.dateOfBirth, businessCard.email, businessCard.phoneNumber, businessCard.address));
+          
+            if (qrCodeBytes == null || qrCodeBytes.IsFailure || qrCodeBytes.Value.Length == 0)
+            {
+                return StatusCode(600, ApplicationErrors.QrCode.QrCodeGenerationFailed);
+            }
+
+            var sanitizedCardName = businessCard.name.Replace(" ", "_");
+            var fileName = $"QR_Code_BusinessCard_{sanitizedCardName}.png";
+
+            var contentDisposition = new System.Net.Mime.ContentDisposition
+            {
+                FileName = fileName,
+                Inline = false
+            };
+
+            Response.Headers.Add("Content-Disposition", contentDisposition.ToString());
+
+            return File(qrCodeBytes, "image/png");
+        }
 
 
   
