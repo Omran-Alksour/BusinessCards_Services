@@ -1,9 +1,16 @@
-﻿using Application.UseCases.BusinessCard.Commands.Create;
+﻿using Application.UseCases.BusinessCard.Queries.ExportBusinessCards;
+using Application.UseCases.General.Commands.ConvertToBase64;
+using Application.UseCases.BusinessCard.Queries.GetByEmail;
+using Application.UseCases.BusinessCard.Commands.Create;
+using Application.UseCases.BusinessCard.Commands.Delete;
+using Application.UseCases.BusinessCard.Commands.Import;
+using Application.UseCases.BusinessCard.Queries.List;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Presentation.Abstractions;
 using Microsoft.AspNetCore.Mvc;
+using Application.Validators;
 using Domain.ValueObjects;
 using Domain.Requests;
 using Domain.Errors;
@@ -45,6 +52,13 @@ namespace Presentation.Controllers
             return result.IsSuccess ? Ok(result) : StatusCode(600, result.Error);
         }
 
+        [HttpPost("import")]
+        public async Task<IActionResult> Import([CustomFileExtensions(".csv,.xml")] IFormFile FileImport , CancellationToken cancellationToken = default)
+        {
+            var command = new BusinessCardsImportCommand( FileImport,cancellationToken ); ;
+            var result = await Sender.Send(command, cancellationToken);
+            return result.IsSuccess ? Ok(result) : StatusCode(600, result.Error);
+        }
 
 
         [HttpGet("{id:guid}")]
@@ -80,8 +94,38 @@ namespace Presentation.Controllers
 
 
 
+        [HttpPost("decodeQrCode")]
+        public async Task<IActionResult> DecodeBusinessCardQrCode([CustomFileExtensions(".png,.jpg,.jpeg,.gif")] IFormFile QRCodeFile)
+        {
+            var command = new DecodeBusinessCardFromQrCodeCommand(QRCodeFile);
+            var result = await Sender.Send(command);
+
+            if (result.IsFailure)
+            {
+                return BadRequest(result.Error);
+            }
+
+            return Ok(result);
+        }
 
 
+        [HttpGet("export")]
+        public async Task<IActionResult> Export([FromQuery] List<Guid>? IDs, [FromQuery] string format = "csv", CancellationToken cancellationToken = default)
+        {
+            format = format.ToLower();
+            var query = new ExportBusinessCardsQuery(IDs, format);
+            var result = await Sender.Send(query, cancellationToken);
+
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result.Error);
+            }
+
+            var contentType = format.Equals("csv", StringComparison.OrdinalIgnoreCase) ? "text/csv" : "application/xml";
+            var fileName = $"BusinessCards.{format}";
+
+            return File(result.Value, contentType, fileName);
+        }
 
 
         [HttpPost("convertImageToBase64")]
@@ -104,6 +148,7 @@ namespace Presentation.Controllers
             }
 
         }
+
 
 
 

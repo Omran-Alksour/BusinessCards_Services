@@ -1,5 +1,7 @@
 using Application;
 using Application.Abstractions.Caching;
+using Application.Abstractions.Services;
+using Application.UseCases.BusinessCard.Services;
 using Infrastructure;
 using Infrastructure.Caching;
 using Microsoft.OpenApi.Models;
@@ -40,6 +42,7 @@ builder.Services.AddSwaggerGen(option =>
 });
 
 builder.Services.AddDistributedMemoryCache();
+builder.Services.AddScoped<IBusinessCardFileProcessingService, BusinessCardFileProcessingService>();
 builder.Services.AddSingleton<ICacheService, CacheService>();
 
 
@@ -51,6 +54,7 @@ if (app.Environment.IsDevelopment())
 }
 app.UseSwagger();
 app.UseSwaggerUI();
+//app.UseSerilogRequestLogging();
 
 app.UseHttpsRedirection();
 
