@@ -1,0 +1,1 @@
+Note for "BusinessCardsCatalog.zip" Please extract the file, then rename the file extension to ".bak" to ensure compatibility for restoration in SQL Server Management Studio (SSMS) or other database management tools.
